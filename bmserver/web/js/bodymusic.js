@@ -25,7 +25,7 @@ $(function() {
         }
     }
     var host = "ws://localhost:8080";
-    var instruments = {0: [0]}; // key = sensor ID, value = IDs of associated instruments
+    var instruments = {0: [0], 1: [1]}; // key = sensor ID, value = IDs of associated instruments
     var staffStep = 2;
     var staffHeight = 120;
     var c4Pitch = 48;
