@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
+	<classpathentry kind="lib" path="lib/vecmath.jar" sourcepath="C:/Program Files/Java/Java3D/1.5.1/src/vecmath-1_5_2-src.zip"/>
+	<classpathentry kind="lib" path="lib/j3dcore.jar" sourcepath="C:/Program Files/Java/Java3D/1.5.1/src/j3d-1_5_2-src.zip"/>
+	<classpathentry kind="lib" path="lib/java_websocket.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/4"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
