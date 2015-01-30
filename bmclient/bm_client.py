@@ -38,7 +38,7 @@ def init_devices():
             break
         sensor = dongle[sensor_index]
         if sensor:
-            sensor.setCompassEnabled(True)
+            sensor.setCompassEnabled(False)
             sensor.getButtonState(); # Clear button state
             sensor_props = {'enabled': False, 'buttonPressed': False}
             sensors.append([sensor, sensor_props])

@@ -1,5 +1,37 @@
 $(function() {
 
+    var host = "ws://localhost:8080";
+    
+    // var instruments = {0: [0], 1: [1]}; // key = sensor ID, value = IDs of associated instruments
+    // var plotHeight = 160;
+    // var staffHeight = 120;
+    // var plotUpdateFrequency = 1;
+    var instruments = {0: [0]}; // key = sensor ID, value = IDs of associated instruments
+    var plotHeight = 420;
+    var staffHeight = 0;
+    var plotUpdateFrequency = 2;
+    
+    var staffStep = 1.5;
+    var c4Pitch = 48;
+    var stemHeight = 12;
+    var noteHeadRx = 4;
+    var noteHeadRy = 2.5;
+    var plotMargin = 10;
+    var plotStep = 1;
+    var lineWidth = 2;
+    var markerRadius = 4;
+    var bodyRect = document.body.getBoundingClientRect();
+    var webSocket = null;
+    var $statusElement;
+    var $updateRateElement;
+    var staffs = {};
+    var sensors = {};
+    var pitches = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    var clock = new (function() {
+        this.tick = 0;
+    })();
+        
+    
     var plotProps = {
         angles: {
             title: "Angles",
@@ -24,26 +56,6 @@ $(function() {
             unit: "deg/sec"
         }
     }
-    var host = "ws://localhost:8080";
-    var instruments = {0: [0], 1: [1]}; // key = sensor ID, value = IDs of associated instruments
-    var staffStep = 2;
-    var staffHeight = 120;
-    var c4Pitch = 48;
-    var stemHeight = 24;
-    var noteHeadRx = 4;
-    var noteHeadRy = 2.5;
-    var plotHeight = 160;
-    var plotMargin = 10;
-    var plotStep = 2;
-    var lineWidth = 2;
-    var markerRadius = 4;
-    var bodyRect = document.body.getBoundingClientRect();
-    var webSocket = null;
-    var $statusElement;
-    var $updateRateElement;
-    var staffs = {};
-    var sensors = {};
-    var pitches = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     
     var createNoteStub = function($svg, strokeIndex) {
         var head = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
@@ -446,7 +458,9 @@ $(function() {
         var sensorId = sensorData.id;
         var sensor = sensors[sensorId];
         if (sensor) {
-            updateSensorPlots(sensor, sensorData);
+            if (clock.tick++ % plotUpdateFrequency == 0) {
+                updateSensorPlots(sensor, sensorData);
+            }
         }
     };
     

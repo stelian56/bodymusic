@@ -27,7 +27,7 @@ public class BMServer {
     }
 
     public void notePlayed(BMNote note) {
-        webServer.notePlayed(note);
+//        webServer.notePlayed(note);
     }
     
     public void stopRequested() throws Exception {
