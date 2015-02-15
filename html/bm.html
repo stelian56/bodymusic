@@ -1,0 +1,26 @@
+<html>
+<head>
+<script src="/js/jquery-2.1.1.js"></script>
+<script src="/js/bm.js"></script>
+<link rel="stylesheet" type="text/css" href="/css/bm.css"/>
+<title>Body Music</title>
+</head>
+
+<body>
+<input type="button" id="stop" value="Stop"/>
+<span>Update rate (Hz):</span>
+<input type="text" id="updateRate" class="update_rate"
+       value="1" list="updateRates"/>
+<datalist id="updateRates">
+  <option value="1">
+  <option value="10">
+  <option value="100">
+</datalist>
+</input>
+<input type="button" id="start" value="Start"/>
+<select id="logFiles"></select>
+<input type="button" id="playback" value="Playback"/>
+
+</body>
+
+</html>

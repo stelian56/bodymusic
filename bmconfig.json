@@ -1,0 +1,26 @@
+{
+    "sensors": {
+        "defaultUpdateRate": 1,
+        "maxUpdateRate": 100,
+        "readings": [
+            {
+                "name": "quat",
+                "command": "getTaredOrientationAsQuaternion",
+                "components": ["q0", "q1", "q2", "q3"]
+            },
+            {
+                "name": "acc",
+                "command": "getCorrectedAccelerometerVector",
+                "components": ["x", "y", "z"]
+            }
+        ]
+    },
+    "server": {
+        "http": {
+            "port": 8080
+        },
+        "websocket": {
+            "port": 8081
+        }
+    }
+}
