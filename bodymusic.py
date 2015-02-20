@@ -16,7 +16,6 @@ import threespace_api as api
 
 config_file_name = "bmconfig.json"
 log_dir = "log"
-log_file_regex = re.compile(".+\.(.+)\.log")
 
 class BMHttpHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     def __init__(self, on_start, on_stop, on_playback, *args):
@@ -165,15 +164,19 @@ class BMSensorWorker(threading.Thread):
         self.sensors = None
         
     def create_log_file(self):
-        file_names = glob.glob("%s/*.log" % log_dir)
+        today = datetime.date.today()
+        file_names = glob.glob("%s/%s.*.log" % (log_dir, today))
         file_count = len(file_names)
-        suffix = "1"
+        suffix = 1
         if file_count > 0:
-            file_names.sort()
-            last_file_name = file_names.pop()
-            match = log_file_regex.match(last_file_name)
-            suffix = int(match.group(1)) + 1
-        file_path = "%s/%s.%s.log" % (log_dir, datetime.date.today(), suffix)
+            regex = re.compile(".+\.(.+)\.log")
+            suffixes = []
+            for file_name in file_names:
+                match = regex.match(file_name)
+                suffixes.append(int(match.group(1)))
+            suffixes.sort()
+            suffix = suffixes.pop() + 1
+        file_path = "%s/%s.%s.log" % (log_dir, today, suffix)
         dir_name = os.path.dirname(file_path)
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
@@ -183,7 +186,6 @@ class BMSensorWorker(threading.Thread):
         self.log_file = self.create_log_file()
         if not self.log_file:
             return False
-        print "Started logging to %s" % self.log_file.name
         device_list = api.getComPorts(filter = api.TSS_FIND_DNG|api.TSS_FIND_WL)
         for device_port in device_list:
             com_port, device_name, device_type = device_port
@@ -231,6 +233,7 @@ class BMSensorWorker(threading.Thread):
             eval(expression)
             sensor.startStreaming()
         print "Started sensors at update rate %dHz" % self.update_rate
+        print "Started logging to %s" % self.log_file.name
         return True
     
     def stop(self):

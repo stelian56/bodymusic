@@ -4,14 +4,9 @@
         "maxUpdateRate": 100,
         "readings": [
             {
-                "name": "quat",
-                "command": "getTaredOrientationAsQuaternion",
-                "components": ["q0", "q1", "q2", "q3"]
-            },
-            {
-                "name": "acc",
-                "command": "getCorrectedAccelerometerVector",
-                "components": ["x", "y", "z"]
+                "name": "angles",
+                "command": "getTaredOrientationAsEulerAngles",
+                "components": ["pitch", "yaw", "roll"]
             }
         ]
     },
