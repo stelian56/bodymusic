@@ -1,65 +1,71 @@
-var bmprocessor = (function() {
+﻿var bmprocessor = (function() {
 
-    var angleAssignment = { yaw: "group", roll: "row", pitch: "column" };
-    var angleRanges = { yaw: [-Math.PI, Math.PI], roll: [-Math.PI, Math.PI],
-                        pitch: [-0.4*Math.PI, 0.4*Math.PI] };
-    var nodeCounts = { group: 8, row: 8, column: 8 };
-    var overlap = 0.1;
-    var currentNode;
+    var constructor = function(sensorId, grid, voices) {
+        this.sensorId = sensorId;
+        this.grid = grid;
+        this.voices = voices;
+        this.currentNode = null;
+    };
     
-    var grid = [
-        "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-        "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-        "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-        "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-        "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-        "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-        "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-        "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY"
-    ];
-
-    var update = function(data) {
-        var node = {};
-        var groupIndex, rowIndex, columnIndex;
-        var nodeChanged = !currentNode && true;
-        $.each(data.angles, function(key, value) {
-            var assignment = angleAssignment[key];
-            var nodeCount = nodeCounts[assignment];
-            if (nodeCount > 1) {
-                var angleRange = angleRanges[key];
-                var angleMin = angleRange[0];
-                var angleMax = angleRange[1];
-                if (value < angleMin || value > angleMax) {
-                    nodeChanged = false;
-                    return false;
-                }
-                var gap = (angleMax - angleMin)/(nodeCount - 1);
-                var nodeIndex = Math.round((value - angleMin)/gap);
-                node[assignment] = nodeIndex;
-                if (!nodeChanged) {
-                    var currentNodeIndex = currentNode[assignment];
-                    if (Math.abs(value - (angleMin + currentNodeIndex*gap)) > 0.5*gap*(1 + 2*overlap)) {
-                        nodeChanged = true;
+    constructor.prototype.update = function(data) {
+        if (data.id == this.sensorId) {
+            var currentNode = this.currentNode;
+            var grid = this.grid;
+            var nodeChanged = !currentNode && true;
+            var node = {};
+            var groupIndex, rowIndex, columnIndex;
+            $.each(data.angles, function(key, value) {
+                var assignment = grid.angleAssignment[key];
+                var nodeCount = grid.nodeCounts[assignment];
+                if (nodeCount > 1) {
+                    var angleRange = grid.angleRanges[key];
+                    var angleMin = angleRange[0];
+                    var angleMax = angleRange[1];
+                    if (value < angleMin || value > angleMax) {
+                        nodeChanged = false;
+                        return false;
+                    }
+                    var gap = (angleMax - angleMin)/(nodeCount - 1);
+                    var nodeIndex = Math.round((value - angleMin)/gap);
+                    node[assignment] = nodeIndex;
+                    if (!nodeChanged) {
+                        var currentNodeIndex = currentNode[assignment];
+                        if (Math.abs(value - (angleMin + currentNodeIndex*gap)) >
+                                0.5*gap*(1 + 2*grid.overlap)) {
+                            nodeChanged = true;
+                        }
                     }
                 }
+                else {
+                    node[assignment] = 0;
+                }
+            });
+            if (nodeChanged) {
+                var pitches = grid.nodes[node.row*grid.nodeCounts.row + node.group];
+                var channel = parseInt(pitches[0]);
+                var pitch;
+                if (channel) {
+                    pitch = pitches[node.column + 1];
+                }
+                else {
+                    channel = 0;
+                    pitch = pitches[node.column];
+                }
+                var voice = voiceMenu[this.voices[channel]];
+                var note = { pitch: pitch, voice: voice, channel: channel };
+                if (currentNode) {
+                    bmplayer.update(note);
+                }
+                this.currentNode = node;
             }
-        });
-        if (nodeChanged) {
-            var pitch = grid[node.row*nodeCounts.row + node.group][node.column];
-            bmplayer.update(pitch);
-            currentNode = node;
-//            console.log(JSON.stringify(node, null) + " " + pitch);
         }
     };
 
-    var stop = function() {
+    constructor.prototype.stop = function() {
         currentNode = null;
     }
-    
-    return {
-        update: update,
-        stop: stop
-    };
+
+    return constructor;
 })();
 
 var bmplayer = (function() {
@@ -99,50 +105,70 @@ var bmplayer = (function() {
         }
     });
     
-    var contextClass = window.AudioContext || window.webkitAudioContext;
-    var context = new contextClass();
-    var attack = 0.001
-    var release = 0.5;
     var spacing = 0.25;
     var checkInterval = 0.025;
     var lookahead = 0.05;
-    var lastNote;
-    var nextPitch;
+    var scheduledNotes = [];
+    var currentNotes = [];
     var timer;
+    var startTime = 1e-3*performance.now();
     
-    var update = function(pitch) {
-        nextPitch = pitch;
-    }
+    var midi;
+    navigator.requestMIDIAccess().then(function(midiAccess) {
+        midi = midiAccess.outputs.get(0);
+    });
 
-    var scheduleNote = function(pitch, time) {
-        if (lastNote) {
-            lastNote.stop(time);
-        }
-        var note = context.createOscillator();
-        var frequency = pitches[pitch].frequency;
-        note.frequency.setValueAtTime(frequency, time);
-        var envelope = context.createGain();
-        envelope.gain.setValueAtTime(0, time);
-        envelope.gain.setTargetAtTime(1, time, attack);
-        envelope.gain.setTargetAtTime(0, time + attack, release);
-        note.connect(envelope);
-        envelope.connect(context.destination);
-        note.start(time);
-        lastNote = note;
-//        console.log(nextPitch);
+    var noteOn = function(note, tick) {
+        var noteCode = note.pitch.charCodeAt(0) - "M".charCodeAt(0) + 60;
+        var status = 0x90 | note.channel;
+        var message = [status, noteCode, 0x7f];
+        var time = startTime + tick*spacing;
+        midi.send(message, time*1000);
+    };
+    
+    var noteOff = function(note, tick) {
+        var noteCode = note.pitch.charCodeAt(0) - "M".charCodeAt(0) + 60
+        var status = 0x80 | note.channel;
+        var message = [status, noteCode, 0x40];
+        var time = startTime + tick*spacing - 0.001;
+        midi.send(message, time*1000);
+    };
+    
+    var update = function(note) {
+        var channel = note.channel;
+        currentNotes[channel] = note;
     };
 
-    var start = function() {
+    var scheduleNote = function(tick, channel) {
+        var scheduledNote = scheduledNotes[channel];
+        if (scheduledNote) {
+            noteOff(scheduledNote.note, tick);
+        }
+        var currentNote = currentNotes[channel];
+        noteOn(currentNote, tick);
+        scheduledNotes[channel] = {note: currentNote, tick: tick};
+    };
+
+    var start = function(voices) {
+        $.each(voices, function(channel, voice) {
+            var status = 0xc0 | channel;
+            var message = [status, voiceMenu[voice]];
+            midi.send(message);
+        });
         timer = setInterval(function() {
-            if (nextPitch) {
-                var currentTime = context.currentTime;
-                var tick = Math.floor((currentTime + lookahead)/spacing);
-                var time = tick*spacing;
-                if (Math.floor(currentTime < time)) {
-                    scheduleNote(nextPitch, time);
-                    nextPitch = null;
+            $.each(currentNotes, function(channel, currentNote) {
+                if (currentNote) {
+                    var time = 1e-3*performance.now() - startTime;
+                    var tick = Math.floor((time + lookahead)/spacing);
+                    var scheduledNote = scheduledNotes[channel];
+                    if (!scheduledNote || scheduledNote.tick != tick) {
+                        if (tick*spacing > time) {
+                            scheduleNote(tick, channel);
+                            currentNotes[channel] = null;
+                        }
+                    }
                 }
-            }
+            });
         }, checkInterval*1000);
     };
     
@@ -165,43 +191,82 @@ var bmplotter = (function() {
 
     var plotProps = [
         {
-            title: "Pitch",
-            sensorId: 0,
+            title: "Sensor 0 Pitch",
+            sensorId: "0",
             maxValue: 0.5*Math.PI,
             key: "angles",
             series: [
-                {key: "pitch", name: "pitch", color: "magenta"}
+                {key: "pitch", name: "pitch 0", color: "magenta"}
             ],
-            scale: 1,
-            unit: ""
+            scale: 180/Math.PI,
+            decimals: 0,
+            unit: "°"
         },
         {
-            title: "Yaw",
-            sensorId: 0,
+            title: "Sensor 0 Yaw",
+            sensorId: "0",
             maxValue: Math.PI,
             key: "angles",
             series: [
-                {key: "yaw", name: "yaw", color: "green"}
+                {key: "yaw", name: "yaw 0", color: "green"}
             ],
-            scale: 1,
-            unit: ""
+            scale: 180/Math.PI,
+            decimals: 0,
+            unit: "°"
         },
         {
-            title: "Roll",
-            sensorId: 0,
+            title: "Sensor 0 Roll",
+            sensorId: "0",
             maxValue: Math.PI,
             key: "angles",
             series: [
-                {key: "roll", name: "roll", color: "blue"}
+                {key: "roll", name: "roll 0", color: "blue"}
             ],
-            scale: 1,
-            unit: ""
+            scale: 180/Math.PI,
+            decimals: 0,
+            unit: "°"
+        },
+        {
+            title: "Sensor 1 Pitch",
+            sensorId: "1",
+            maxValue: 0.5*Math.PI,
+            key: "angles",
+            series: [
+                {key: "pitch", name: "pitch 1", color: "magenta"}
+            ],
+            scale: 180/Math.PI,
+            decimals: 0,
+            unit: "°"
+        },
+        {
+            title: "Sensor 1 Yaw",
+            sensorId: "1",
+            maxValue: Math.PI,
+            key: "angles",
+            series: [
+                {key: "yaw", name: "yaw 1", color: "green"}
+            ],
+            scale: 180/Math.PI,
+            decimals: 0,
+            unit: "°"
+        },
+        {
+            title: "Sensor 1 Roll",
+            sensorId: "1",
+            maxValue: Math.PI,
+            key: "angles",
+            series: [
+                {key: "roll", name: "roll 1", color: "blue"}
+            ],
+            scale: 180/Math.PI,
+            decimals: 0,
+            unit: "°"
         }
     ];
     var plotUpdateInterval = 1;
     var plotStep = 2;
 
-    var plotHeight = 300 / plotProps.length;
+    var plotHeight = 800 / plotProps.length;
     var plotMargin = 10;
     var lineWidth = 2;
     var markerRadius = 4;
@@ -291,14 +356,14 @@ var bmplotter = (function() {
                     y: 15
                 }).appendTo($svg);
                 maxLabel.textContent = (thisPlotProps.maxValue * thisPlotProps.scale).toFixed(0) +
-                    " " + thisPlotProps.unit;
+                    thisPlotProps.unit;
                 var minLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
                 $(minLabel).attr({
                     x: 5,
                     y: plotHeight - 5
                 }).appendTo($svg);
                 minLabel.textContent = (-thisPlotProps.maxValue * thisPlotProps.scale).toFixed(0) +
-                    " " + thisPlotProps.unit;
+                    thisPlotProps.unit;
                 var plotLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
                 $(plotLabel).attr({
                     x: 50,
@@ -311,7 +376,7 @@ var bmplotter = (function() {
                 var yBase = plotHeight/2;
                 plot = {
                     key: thisPlotProps.key,
-                    id: thisPlotProps.sensorId,
+                    sensorId: thisPlotProps.sensorId,
                     yBase: yBase,
                     yScale: yBase/thisPlotProps.maxValue,
                     veil: veil,
@@ -362,7 +427,7 @@ var bmplotter = (function() {
                         $.each(plot.series, function() {
                             var value = data[plotKey][this.key] * thisPlotProps.scale;
                             tooltipText += "<br>" + this.name + ": " +
-                                value.toFixed(5) + " " + thisPlotProps.unit;
+                                value.toFixed(thisPlotProps.decimals) + " " + thisPlotProps.unit;
                         });
                         tooltip.style.display = "inline-block";
                         tooltip.style.left = eventX - 30 + "px";
@@ -424,7 +489,7 @@ var bmplotter = (function() {
     var updatePlots = function(data) {
         $.each(plots, function() {
             var plot = this;
-            if (plot.sensorId = data.id) {
+            if (plot.sensorId == data.id) {
                 if (plot.currentStrokeIndex < plot.strokeCount - 1) {
                     plot.currentStrokeIndex++;
                 }
@@ -488,13 +553,33 @@ var bmconsole = (function() {
     var logFileInput;
     var websocketPort = 8081;
     var websocket;
+    var processors = [];
 
+    var getGrids = function() {
+        var grids = {
+            "0": gridMenu["melody"],
+            "1": gridMenu["rhythm"]
+        };
+        return grids;
+    };
+    
+    var getVoices = function() {
+        var voices = {
+            "0": "piano",
+            "1": "tom",
+            "2": "tam"
+        };
+        return voices;
+    };
+    
     var startWebSocket = function() {
         if (!websocket || websocket.readyState != WebSocket.OPEN) {
             websocket = new WebSocket("ws://localhost:" + websocketPort);
             websocket.onmessage = function(event) {
                 var data = JSON.parse(event.data);
-                bmprocessor.update(data);
+                $.each(processors, function() {
+                    this.update(data);
+                });
                 bmplotter.update(data);
             };
         }
@@ -505,11 +590,29 @@ var bmconsole = (function() {
         request.open("GET", "/?command=stop", true);
         request.send();
         bmplayer.stop();
-        bmprocessor.stop();
+        $.each(processors, function() {
+            this.stop();
+        });
     };
 
+    var startProcessors = function() {
+        var grids = getGrids();
+        var voices = getVoices();
+        processors = [];
+        $.each(grids, function(sensorId, grid) {
+            var processor = new bmprocessor(sensorId, grid, voices);
+            processors.push(processor);
+        });
+    };
+    
+    var startPlayer = function() {
+        var voices = getVoices();
+        bmplayer.start(voices);
+    };
+    
     var start = function() {
-        bmplayer.start();
+        startProcessors();
+        startPlayer();
         startWebSocket();
         var updateRateString = updateRateInput.val();
         var updateRate = parseInt(updateRateString);
@@ -523,6 +626,8 @@ var bmconsole = (function() {
     };
 
     var playback = function() {
+        startProcessors();
+        startPlayer();
         startWebSocket();
         var logFile = logFileInput.val();
         if (logFile) {
@@ -546,6 +651,9 @@ var bmconsole = (function() {
     };
 
     var init = function() {
+        if (websocket) {
+            websocket.close();
+        }
         var stopButton = $("<input/> ").attr({
             type: "button",
             class: "bodymusic_button",
@@ -598,3 +706,45 @@ $(document).ready(function() {
     bmconsole.init();
     bmplotter.init();
 });
+
+var gridMenu = {
+    "melody": {
+        angleAssignment: { yaw: "group", roll: "row", pitch: "column" },
+        angleRanges: {
+            yaw: [-Math.PI, Math.PI],
+            roll: [-Math.PI, Math.PI],
+            pitch: [-0.4*Math.PI, 0.4*Math.PI]
+        },
+        nodeCounts: { group: 8, row: 8, column: 8 },
+        overlap: 0.1,
+        nodes: [
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY"
+        ]
+    },
+    "rhythm": {
+        angleAssignment: { yaw: "row", roll: "column", pitch: "group" },
+        angleRanges: {
+            yaw: [-Math.PI, Math.PI],
+            roll: [-0.5*Math.PI, 0.5*Math.PI],
+            pitch: [-0.4*Math.PI, 0.4*Math.PI]
+        },
+        nodeCounts: { group: 2, row: 1, column: 4 },
+        overlap: 0.1,
+        nodes: [
+            "1MMMM","2TTTT"
+        ]
+    }
+};
+
+var voiceMenu = {
+    "piano": 0x0,
+    "tom": 0x76,
+    "tam": 0x73
+};
