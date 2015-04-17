@@ -1,9 +1,138 @@
-﻿var bmprocessor = (function() {
+﻿var defaultUpdateRate = 20;
 
-    var constructor = function(sensorId, grid, voices) {
+var channels = {
+    0: {
+        name: "piano",
+        voice: 0x0
+    },
+    1: {
+        name: "tom",
+        voice: 0x76
+    },
+    2: {
+        name: "tam",
+        voice: 0x73
+    }
+};
+
+var grids = {
+    "0": {
+        name: "desertWind",
+        angleAssignment: { yaw: "group", roll: "row", pitch: "column" },
+        angleRanges: {
+            yaw: [-Math.PI, Math.PI],
+            roll: [-Math.PI, Math.PI],
+            pitch: [-0.4*Math.PI, 0.4*Math.PI]
+        },
+        nodeCounts: { group: 8, row: 8, column: 8 },
+        overlap: 0.1,
+        nodes: [
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY"
+        ]
+    },
+    "1": {
+        name: "gloryEchoes",
+        angleAssignment: { yaw: "row", roll: "column", pitch: "group" },
+        angleRanges: {
+            yaw: [-Math.PI, Math.PI],
+            roll: [-Math.PI/2, Math.PI/2],
+            pitch: [-0.4*Math.PI, 0.4*Math.PI]
+        },
+        nodeCounts: { group: 2, row: 1, column: 4 },
+        overlap: 0.1,
+        nodes: [
+            "1MMMM","2TTTT"
+        ]
+    }
+};
+
+var plotProps = [
+    {
+        title: "Sensor 0 Pitch",
+        sensorId: "0",
+        maxValue: 0.5*Math.PI,
+        key: "angles",
+        series: [
+            {key: "pitch", name: "pitch 0", color: "magenta"}
+        ],
+        scale: 180/Math.PI,
+        decimals: 0,
+        unit: "°"
+    },
+    {
+        title: "Sensor 0 Yaw",
+        sensorId: "0",
+        maxValue: Math.PI,
+        key: "angles",
+        series: [
+            {key: "yaw", name: "yaw 0", color: "green"}
+        ],
+        scale: 180/Math.PI,
+        decimals: 0,
+        unit: "°"
+    },
+    {
+        title: "Sensor 0 Roll",
+        sensorId: "0",
+        maxValue: Math.PI,
+        key: "angles",
+        series: [
+            {key: "roll", name: "roll 0", color: "blue"}
+        ],
+        scale: 180/Math.PI,
+        decimals: 0,
+        unit: "°"
+    },
+    {
+        title: "Sensor 1 Pitch",
+        sensorId: "1",
+        maxValue: 0.5*Math.PI,
+        key: "angles",
+        series: [
+            {key: "pitch", name: "pitch 1", color: "magenta"}
+        ],
+        scale: 180/Math.PI,
+        decimals: 0,
+        unit: "°"
+    },
+    {
+        title: "Sensor 1 Yaw",
+        sensorId: "1",
+        maxValue: Math.PI,
+        key: "angles",
+        series: [
+            {key: "yaw", name: "yaw 1", color: "green"}
+        ],
+        scale: 180/Math.PI,
+        decimals: 0,
+        unit: "°"
+    },
+    {
+        title: "Sensor 1 Roll",
+        sensorId: "1",
+        maxValue: Math.PI,
+        key: "angles",
+        series: [
+            {key: "roll", name: "roll 1", color: "blue"}
+        ],
+        scale: 180/Math.PI,
+        decimals: 0,
+        unit: "°"
+    }
+];
+
+var bmprocessor = (function() {
+
+    var constructor = function(sensorId, grid) {
         this.sensorId = sensorId;
         this.grid = grid;
-        this.voices = voices;
         this.currentNode = null;
     };
     
@@ -51,7 +180,7 @@
                     channel = 0;
                     pitch = pitches[node.column];
                 }
-                var voice = voiceMenu[this.voices[channel]];
+                var voice = channels[channel].voice;
                 var note = { pitch: pitch, voice: voice, channel: channel };
                 if (currentNode) {
                     bmplayer.update(note);
@@ -149,10 +278,10 @@ var bmplayer = (function() {
         scheduledNotes[channel] = {note: currentNote, tick: tick};
     };
 
-    var start = function(voices) {
-        $.each(voices, function(channel, voice) {
+    var start = function() {
+        $.each(channels, function(channel) {
             var status = 0xc0 | channel;
-            var message = [status, voiceMenu[voice]];
+            var message = [status, this.voice];
             midi.send(message);
         });
         timer = setInterval(function() {
@@ -185,84 +314,8 @@ var bmplayer = (function() {
     };
 })();
 
-var defaultUpdateRate = 20;
-
 var bmplotter = (function() {
 
-    var plotProps = [
-        {
-            title: "Sensor 0 Pitch",
-            sensorId: "0",
-            maxValue: 0.5*Math.PI,
-            key: "angles",
-            series: [
-                {key: "pitch", name: "pitch 0", color: "magenta"}
-            ],
-            scale: 180/Math.PI,
-            decimals: 0,
-            unit: "°"
-        },
-        {
-            title: "Sensor 0 Yaw",
-            sensorId: "0",
-            maxValue: Math.PI,
-            key: "angles",
-            series: [
-                {key: "yaw", name: "yaw 0", color: "green"}
-            ],
-            scale: 180/Math.PI,
-            decimals: 0,
-            unit: "°"
-        },
-        {
-            title: "Sensor 0 Roll",
-            sensorId: "0",
-            maxValue: Math.PI,
-            key: "angles",
-            series: [
-                {key: "roll", name: "roll 0", color: "blue"}
-            ],
-            scale: 180/Math.PI,
-            decimals: 0,
-            unit: "°"
-        },
-        {
-            title: "Sensor 1 Pitch",
-            sensorId: "1",
-            maxValue: 0.5*Math.PI,
-            key: "angles",
-            series: [
-                {key: "pitch", name: "pitch 1", color: "magenta"}
-            ],
-            scale: 180/Math.PI,
-            decimals: 0,
-            unit: "°"
-        },
-        {
-            title: "Sensor 1 Yaw",
-            sensorId: "1",
-            maxValue: Math.PI,
-            key: "angles",
-            series: [
-                {key: "yaw", name: "yaw 1", color: "green"}
-            ],
-            scale: 180/Math.PI,
-            decimals: 0,
-            unit: "°"
-        },
-        {
-            title: "Sensor 1 Roll",
-            sensorId: "1",
-            maxValue: Math.PI,
-            key: "angles",
-            series: [
-                {key: "roll", name: "roll 1", color: "blue"}
-            ],
-            scale: 180/Math.PI,
-            decimals: 0,
-            unit: "°"
-        }
-    ];
     var plotUpdateInterval = 1;
     var plotStep = 2;
 
@@ -555,23 +608,6 @@ var bmconsole = (function() {
     var websocket;
     var processors = [];
 
-    var getGrids = function() {
-        var grids = {
-            "0": gridMenu["melody"],
-            "1": gridMenu["rhythm"]
-        };
-        return grids;
-    };
-    
-    var getVoices = function() {
-        var voices = {
-            "0": "piano",
-            "1": "tom",
-            "2": "tam"
-        };
-        return voices;
-    };
-    
     var startWebSocket = function() {
         if (!websocket || websocket.readyState != WebSocket.OPEN) {
             websocket = new WebSocket("ws://localhost:" + websocketPort);
@@ -596,18 +632,15 @@ var bmconsole = (function() {
     };
 
     var startProcessors = function() {
-        var grids = getGrids();
-        var voices = getVoices();
         processors = [];
         $.each(grids, function(sensorId, grid) {
-            var processor = new bmprocessor(sensorId, grid, voices);
+            var processor = new bmprocessor(sensorId, grid);
             processors.push(processor);
         });
     };
     
     var startPlayer = function() {
-        var voices = getVoices();
-        bmplayer.start(voices);
+        bmplayer.start();
     };
     
     var start = function() {
@@ -706,45 +739,3 @@ $(document).ready(function() {
     bmconsole.init();
     bmplotter.init();
 });
-
-var gridMenu = {
-    "melody": {
-        angleAssignment: { yaw: "group", roll: "row", pitch: "column" },
-        angleRanges: {
-            yaw: [-Math.PI, Math.PI],
-            roll: [-Math.PI, Math.PI],
-            pitch: [-0.4*Math.PI, 0.4*Math.PI]
-        },
-        nodeCounts: { group: 8, row: 8, column: 8 },
-        overlap: 0.1,
-        nodes: [
-            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY"
-        ]
-    },
-    "rhythm": {
-        angleAssignment: { yaw: "row", roll: "column", pitch: "group" },
-        angleRanges: {
-            yaw: [-Math.PI, Math.PI],
-            roll: [-0.5*Math.PI, 0.5*Math.PI],
-            pitch: [-0.4*Math.PI, 0.4*Math.PI]
-        },
-        nodeCounts: { group: 2, row: 1, column: 4 },
-        overlap: 0.1,
-        nodes: [
-            "1MMMM","2TTTT"
-        ]
-    }
-};
-
-var voiceMenu = {
-    "piano": 0x0,
-    "tom": 0x76,
-    "tam": 0x73
-};
