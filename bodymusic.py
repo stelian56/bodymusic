@@ -57,7 +57,7 @@ class BMHttpHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             file_path = file_path[1:]
         if len(file_path) > 0:
             try:
-                f = open(file_path)
+                f = open(file_path, "rb")
             except IOError:
                 self.send_not_found(file_path)
             else:
