@@ -1,1 +1,1 @@
-python server\bmserver.py
+python bodymusic.py

@@ -1,5 +1,10 @@
 ﻿var defaultUpdateRate = 20;
 
+var instruments = {
+    "0": "desertWind",
+    "1": "tomTam"
+};
+
 var channels = {
     0: {
         name: "piano",
@@ -12,23 +17,57 @@ var channels = {
     2: {
         name: "tam",
         voice: 0x73
-    }
+    },
+    3: {
+        name: "march",
+        voice: 0x74
+    },
+    4: {
+        name: "can",
+        voice: 0x71
+    },
 };
 
 var grids = {
-    "0": {
-        name: "desertWind",
+    "blues": {
         angleAssignment: { yaw: "group", roll: "row", pitch: "column" },
         angleRanges: {
             yaw: [-Math.PI, Math.PI],
             roll: [-Math.PI, Math.PI],
             pitch: [-0.4*Math.PI, 0.4*Math.PI]
         },
-        nodeCounts: { group: 8, row: 8, column: 8 },
+        counts: { group: 2, row: 4, column: 13 },
         overlap: 0.1,
         nodes: [
-            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
-            "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
+            "ADFGHKMPRSTWY","ADFGHKMPRSTWY",
+            "ADFGHKMPRSTWY","ADFGHKMPRSTWY",
+            "ADFGHKMPRSTWY","ADFGHKMPRSTWY",
+            "ADFGHKMPRSTWY","ADFGHKMPRSTWY"
+        ]
+    },
+    "marchCan": {
+        angleAssignment: { yaw: "row", roll: "column", pitch: "group" },
+        angleRanges: {
+            yaw: [-Math.PI, Math.PI],
+            roll: [-Math.PI/2, Math.PI/2],
+            pitch: [-0.4*Math.PI, 0.4*Math.PI]
+        },
+        counts: { group: 2, row: 1, column: 4 },
+        overlap: 0.1,
+        nodes: [
+            "3KKKK","4TTTT"
+        ]
+    },
+    "desertWind": {
+        angleAssignment: { yaw: "group", roll: "row", pitch: "column" },
+        angleRanges: {
+            yaw: [-Math.PI, Math.PI],
+            roll: [-Math.PI, Math.PI],
+            pitch: [-0.4*Math.PI, 0.4*Math.PI]
+        },
+        counts: { group: 8, row: 6, column: 8 },
+        overlap: 0.1,
+        nodes: [
             "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
             "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
             "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY",
@@ -37,15 +76,14 @@ var grids = {
             "MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY","MNQRTUXY"
         ]
     },
-    "1": {
-        name: "gloryEchoes",
+    "tomTam": {
         angleAssignment: { yaw: "row", roll: "column", pitch: "group" },
         angleRanges: {
             yaw: [-Math.PI, Math.PI],
             roll: [-Math.PI/2, Math.PI/2],
             pitch: [-0.4*Math.PI, 0.4*Math.PI]
         },
-        nodeCounts: { group: 2, row: 1, column: 4 },
+        counts: { group: 2, row: 1, column: 4 },
         overlap: 0.1,
         nodes: [
             "1MMMM","2TTTT"
@@ -60,7 +98,7 @@ var plotProps = [
         maxValue: 0.5*Math.PI,
         key: "angles",
         series: [
-            {key: "pitch", name: "pitch 0", color: "magenta"}
+            {key: "pitch", name: "Sensor 0 pitch:", color: "magenta"}
         ],
         scale: 180/Math.PI,
         decimals: 0,
@@ -72,7 +110,7 @@ var plotProps = [
         maxValue: Math.PI,
         key: "angles",
         series: [
-            {key: "yaw", name: "yaw 0", color: "green"}
+            {key: "yaw", name: "Sensor 0 yaw:", color: "green"}
         ],
         scale: 180/Math.PI,
         decimals: 0,
@@ -84,7 +122,7 @@ var plotProps = [
         maxValue: Math.PI,
         key: "angles",
         series: [
-            {key: "roll", name: "roll 0", color: "blue"}
+            {key: "roll", name: "Sensor 0 roll:", color: "blue"}
         ],
         scale: 180/Math.PI,
         decimals: 0,
@@ -96,7 +134,7 @@ var plotProps = [
         maxValue: 0.5*Math.PI,
         key: "angles",
         series: [
-            {key: "pitch", name: "pitch 1", color: "magenta"}
+            {key: "pitch", name: "Sensor 1 pitch:", color: "magenta"}
         ],
         scale: 180/Math.PI,
         decimals: 0,
@@ -108,7 +146,7 @@ var plotProps = [
         maxValue: Math.PI,
         key: "angles",
         series: [
-            {key: "yaw", name: "yaw 1", color: "green"}
+            {key: "yaw", name: "Sensor 1 yaw", color: "green"}
         ],
         scale: 180/Math.PI,
         decimals: 0,
@@ -120,7 +158,7 @@ var plotProps = [
         maxValue: Math.PI,
         key: "angles",
         series: [
-            {key: "roll", name: "roll 1", color: "blue"}
+            {key: "roll", name: "Sensor 1 roll", color: "blue"}
         ],
         scale: 180/Math.PI,
         decimals: 0,
@@ -145,7 +183,7 @@ var bmprocessor = (function() {
             var groupIndex, rowIndex, columnIndex;
             $.each(data.angles, function(key, value) {
                 var assignment = grid.angleAssignment[key];
-                var nodeCount = grid.nodeCounts[assignment];
+                var nodeCount = grid.counts[assignment];
                 if (nodeCount > 1) {
                     var angleRange = grid.angleRanges[key];
                     var angleMin = angleRange[0];
@@ -170,7 +208,7 @@ var bmprocessor = (function() {
                 }
             });
             if (nodeChanged) {
-                var pitches = grid.nodes[node.row*grid.nodeCounts.row + node.group];
+                var pitches = grid.nodes[node.row*grid.counts.group + node.group];
                 var channel = parseInt(pitches[0]);
                 var pitch;
                 if (channel) {
@@ -226,6 +264,7 @@ var bmplayer = (function() {
         "X": {name: "B4"},
         "Y": {name: "C5"}
     };
+
     var refPitch = "V";
     $.each(pitches, function(key) {
         var offset = key.charCodeAt(0) - refPitch.charCodeAt(0);
@@ -633,7 +672,8 @@ var bmconsole = (function() {
 
     var startProcessors = function() {
         processors = [];
-        $.each(grids, function(sensorId, grid) {
+        $.each(instruments, function(sensorId, gridName) {
+            var grid = grids[gridName];
             var processor = new bmprocessor(sensorId, grid);
             processors.push(processor);
         });
