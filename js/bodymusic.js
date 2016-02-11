@@ -1,8 +1,12 @@
-﻿var defaultUpdateRate = 20;
+﻿var defaultUpdateRate = 50;
 
 var instruments = {
-    "0": "desertWind",
-    "1": "tomTam"
+    "0": {
+        grid: "blues"
+    },
+    "1": {
+        grid: "marchCan"
+    }
 };
 
 var channels = {
@@ -129,44 +133,88 @@ var plotProps = [
         unit: "°"
     },
     {
-        title: "Sensor 1 Pitch",
+        title: "Sensor 1 left",
         sensorId: "1",
-        maxValue: 0.5*Math.PI,
-        key: "angles",
+        maxValue: 3,
+        key: "acceleration",
         series: [
-            {key: "pitch", name: "Sensor 1 pitch:", color: "magenta"}
+            {key: "left", name: "Sensor 1 left:", color: "magenta"}
         ],
-        scale: 180/Math.PI,
-        decimals: 0,
-        unit: "°"
+        scale: 1,
+        decimals: 1,
+        unit: "g"
     },
     {
-        title: "Sensor 1 Yaw",
+        title: "Sensor 1 up",
         sensorId: "1",
-        maxValue: Math.PI,
-        key: "angles",
+        maxValue: 3,
+        key: "acceleration",
         series: [
-            {key: "yaw", name: "Sensor 1 yaw", color: "green"}
+            {key: "up", name: "Sensor 1 up", color: "green"}
         ],
-        scale: 180/Math.PI,
-        decimals: 0,
-        unit: "°"
+        scale: 1,
+        decimals: 1,
+        unit: "g"
     },
     {
-        title: "Sensor 1 Roll",
+        title: "Sensor 1 fwd",
         sensorId: "1",
-        maxValue: Math.PI,
-        key: "angles",
+        maxValue: 3,
+        key: "acceleration",
         series: [
-            {key: "roll", name: "Sensor 1 roll", color: "blue"}
+            {key: "fwd", name: "Sensor 1 fwd", color: "blue"}
         ],
-        scale: 180/Math.PI,
-        decimals: 0,
-        unit: "°"
+        scale: 1,
+        decimals: 1,
+        unit: "g"
     }
 ];
 
-var bmprocessor = (function() {
+var bmJoltProcessor = (function() {
+
+    var constructor = function(sensorId, jolts) {
+        this.sensorId = sensorId;
+        this.left = jolts.left;
+        this.up = jolts.up;
+        this.fwd = jolts.fwd;
+        this.currentDir = null;
+    };
+    
+    constructor.prototype.update = function(data) {
+        var acc = data["acceleration"];
+        var ax = acc.ax;
+        var ay = acc.ay;
+        var az = acc.az;
+        var a = [ax, ay, az];
+        var m = data["matrix"];
+        var max = m.m00*ax + m.m10*ay + m.m20*az;
+        var may = m.m01*ax + m.m11*ay + m.m21*az;
+        var maz = -(m.m02*ax + m.m12*ay + m.m22*az);
+        
+        if (Math.abs(may) > 1) {
+            var pitch = "K";
+            var channel = 3;
+            var voice = channels[channel].voice;
+            var note = { pitch: pitch, voice: voice, channel: channel };
+            bmplayer.update(note);
+        }
+        if (Math.abs(max) > 1) {
+            var pitch = "T";
+            var channel = 4;
+            var voice = channels[channel].voice;
+            var note = { pitch: pitch, voice: voice, channel: channel };
+            bmplayer.update(note);
+        }
+        
+        data.acceleration.left = max;
+        data.acceleration.up = may;
+        data.acceleration.fwd = maz;
+    };
+    
+    return constructor;
+})();
+
+var bmGridProcessor = (function() {
 
     var constructor = function(sensorId, grid) {
         this.sensorId = sensorId;
@@ -672,9 +720,17 @@ var bmconsole = (function() {
 
     var startProcessors = function() {
         processors = [];
-        $.each(instruments, function(sensorId, gridName) {
-            var grid = grids[gridName];
-            var processor = new bmprocessor(sensorId, grid);
+        $.each(instruments, function(sensorId, processorProps) {
+            var processor;
+            var gridName = processorProps.grid;
+            if (gridName) {
+                var grid = grids[gridName];
+                processor = new bmGridProcessor(sensorId, grid);
+            }
+            else {
+                var jolts = processorProps.jolts;
+                processor = new bmJoltProcessor(sensorId, jolts);
+            }
             processors.push(processor);
         });
     };

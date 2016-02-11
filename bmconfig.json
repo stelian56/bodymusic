@@ -7,6 +7,16 @@
                 "name": "angles",
                 "command": "getTaredOrientationAsEulerAngles",
                 "components": ["pitch", "yaw", "roll"]
+            },
+            {
+                "name": "matrix",
+                "command": "getTaredOrientationAsRotationMatrix",
+                "components": ["m00", "m01", "m02", "m10", "m11", "m12", "m20", "m21", "m22"]
+            },
+            {
+                "name": "acceleration",
+                "command": "getCorrectedLinearAccelerationInGlobalSpace",
+                "components": ["ax", "ay", "az"]
             }
         ]
     },
